@@ -1,0 +1,63 @@
+---
+title: "Kmeans-clustering"
+output: html_document
+---
+
+K-means Clustering
+------------------
+
+K-means can work with any dimensional data, but here we'll just use two so that it's easyily visualizable.
+
+For this task we'll generate some data which we'll push to have 4 clusters.
+
+```{r}
+rm(list = ls())
+set.seed(101)
+
+x = matrix(rnorm(100*2),100,2)
+xmean = matrix(rnorm(8, sd=4),4,2)
+which  = sample(1:4, 100, replace=TRUE)
+x = x+xmean[which,]
+plot(x, col=which, pch=19)
+```
+
+Create a matrix of 200 elements with 100 rows and 2 columns.
+(the columns are the two 'predictors', the rows the 'examples')
+Create a matrix with 8 elements, with 4 rows and 2 colmns, with a sd of 4.
+Create a vector of 100 numbers, random from the range 1 to 4.
+
+According to which number was randomly generated in which, add one of the rows xmean
+
+plot the results, coloring the data points according to which 'which' cluster it was shifted by. This is the 'true' clustering of the data.
+
+Now let's see if k-means can identify these.
+
+Run kmeans, looking for 4 clusters, and get it to repeat the process, with different random starts, 15 times.
+
+```{r}
+km.out = kmeans(x, 4, nstart = 15)
+km.out
+```
+
+The output is the means in each predictor of each of the 4 clusters (a 4(clusters) x 2(predictors) matrix).
+You also get the cluster that each data point was assigned to.
+The SS measures is the R^2 of k-means clustering - it tells us how much of the variance has been explained by k-means.
+
+
+```{r}
+plot(x, col = km.out$cluster, cex=2, pch=1, lwd=1)
+points(x, col=which, pch=19)
+points(x, col=c(4,3,2,1)[which], pch=19)
+```
+
+The colors chosen are arbitrary, so just to make the numbers assigned by kmeans to match the ones we specified, the last line does a bit of adjusting - but this is purely aesthetic.
+
+Plot the kmeans clusters and the 'real' clusters to compare how accurate it is. You see that in general it does a good job.
+
+How well does it do?
+
+```{r}
+table(km.out$cluster,which)
+```
+
+Note that the numbers don't match up, as the labels were arbitrary, but you can see that four of the elements of the vector have high numbers and the rest are low/zero, indicating that it does a pretty good job.

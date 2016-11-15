@@ -1,0 +1,149 @@
+---
+title: "RdmForestsBoosting"
+output: html_document
+---
+
+Random Forests and Boosting
+---------------------------
+
+Random Forests build lots of big 'bushy' trees, and then averages them to reduce variance.
+
+```{r}
+rm(list = ls())
+library(randomForest)
+library(MASS)
+set.seed(101)
+```
+
+OK, let's look at the Boston data set from the MASS(achusets) library and select a training sample.
+
+```{r}
+dim(Boston)
+train = sample(1:nrow(Boston), 300)
+?Boston
+```
+
+Now let's fit a random forest using the medv, i.e. median value, as the target variable.
+
+```{r}
+rf.boston = randomForest(medv ~ ., data=Boston, subset=train)
+rf.boston
+```
+
+It grows 500 trees by default and only tests 4 predictors at each split. There are 4 because there are 13 predictors (14 - 1 because medv is our target) and sqrt(13) ~= 4.
+
+The MSE is based on the OOB (out of bag) 'test' data.
+
+What is the influence of mtry (m-try), the number of predictors used at each branch?
+
+start off by creating two vectors that can accept decimals, with length of 13, so that we can see how mtry ranging from 1 to all (13) predictors changes the result.
+
+Then do a loop with that value of mtry, using a slightly smaller number of trees (for no particular reason other than it takes a little time and we know that 400 is sufficient in this case)
+
+then look at the out of bag error.
+
+next do a prediction and use that to look at the mean square error
+
+```{r}
+oob.err = double(13)
+test.err = double(13)
+for (mtry in 1:13){
+        fit = randomForest(medv ~ .,
+                           data=Boston,
+                           subset=train,
+                           mtry = mtry,
+                           ntree = 400)
+        oob.err[mtry] = fit$mse[400]
+        pred = predict(fit,Boston[-train,])
+        test.err[mtry] = with(Boston[-train,], mean((medv-pred)^2))
+        cat(mtry, ' ')
+}
+```
+
+Now let's plot the results
+
+```{r}
+matplot(1:mtry, 
+        cbind(test.err,oob.err), 
+        pch = 19,
+        col = c('red','blue'),
+        type = 'b',
+        ylab = 'MSE')
+legend('topright', legend = c('OOB','TEST'), pch=19, col=c('red','blue'))
+```
+
+type = b means that it plots both points and connects them with lines
+
+The graph appears to indicate that the best mtry value is somewhere between 4 and 6.
+
+The extreme right is where you use all the predictors. This is BAGGING!
+
+
+Boosting
+--------
+
+Boosting uses lots of little trees (and even stumps). Each new tree tries to do a little bit better than what all the previous trees have done. This is a good technique when you've got high bias.
+
+Boosting is a bit more fiddly as you've got three parameters to improve, which you can do with CV. However, boosted trees normally outperform random forests, so it's worth it.
+
+We'll use the boosting package gbm
+
+```{r}
+library(gbm)
+
+boost.boston = gbm(medv ~ .,
+                   data = Boston[train,],
+                   distribution = 'gaussian',
+                   n.trees = 10000,
+                   shrinkage = 0.01,
+                   interaction.depth = 4)
+summary(boost.boston)
+```
+
+from the summary and associated plot we can see that lstat (number of people with lower income in the area) and rm (rooms in the house) appear to be the biggest predictors of house value.
+
+Let's do 'partial dependence' plots on these two variables. These show that:
+
+for lstat, as number of pooer people increases, house price decreases.
+for rm, as number of rooms increases, house price increases.
+f(rm) or f(lstat) = medv = median house value.
+
+```{r}
+plot(boost.boston, i = 'lstat')
+plot(boost.boston, i = 'rm')
+```
+
+
+One of the parameters that you can tweak in boosting is the number of trees. Too many can lead to overfitting (although boosting is normally pretty robust within reason). To choose the appropriate number of trees, CV can be used. Here, we're just going to go through the process of predicting from the model.
+
+Here we're going to try varying the number of forests. Fortunately, we don't need to do a for loop, as predict can take a sequence directly!
+
+```{r}
+n.trees = seq(from=100, to=10000, by=100)
+predmat = predict(boost.boston, 
+                  newdata = Boston[-train,],
+                  n.trees = n.trees)
+dim(predmat)
+berr = with(Boston[-train,], 
+            apply( (predmat - medv)^2,2,mean))
+plot(n.trees, berr,
+     pch = 19,
+     ylab = 'MSE',
+     xlab = '# of trees',
+     main = 'Boosting test error')
+abline(h = min(test.err), col='red')
+
+```
+
+the apply computes the column-wise mean square error for each size of forest (B) to give berr (B-error).
+
+Looks like around 4000 trees in the forest is enough then it plateaus.
+
+Also note that MSE doesn't increase again with a large number of trees per forest in this example, which suggest that the model isn't overfitting even at these high levels. As I said before, Boosting is quite resistant to overfitting.
+
+The red line shows the best fit that the random forest had earlier and as you can see boosting has beaten that.
+
+Boosting is generally better, although it often needs tuning, but random forests are quick and easy.
+
+
+

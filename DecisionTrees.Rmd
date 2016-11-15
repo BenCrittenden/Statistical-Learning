@@ -1,0 +1,94 @@
+---
+title: "DecisionTrees"
+output: html_document
+---
+
+Decision Trees
+--------------
+
+```{r}
+rm(list = ls())
+library(tree)
+library(ISLR)
+attach(Carseats)
+```
+
+Let's inspect the data
+
+```{r}
+hist(Sales)
+High = ifelse(Sales<=8,'No','Yes')
+Carseats = data.frame(Carseats, High)
+```
+
+Here we created an extra column in the Carseats dataframe called High, which is a yes/no depending on whether they've sold more than 8 or not
+
+Now we want to fit a tree to the data. Our response is going to be whether there were high or low carsales. Seeing as the Sales column will tell us this exactly, we need to remove that column from the tree model (but we want to fit all other predictors, which we do by using . in the formula)
+
+```{r}
+tree.carseats = tree(High ~ . - Sales, data = Carseats)
+summary(tree.carseats)
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+```
+
+For a more detailed look at the tree, just call it directly
+
+```{r}
+tree.carseats
+
+```
+
+Now lets look at it's predictive power by splitting the data into a training (250) and a test set (150). 400 data points overall.
+
+```{r}
+set.seed(1011)
+train = sample(1:nrow(Carseats), 250)
+tree.carseats = tree(High ~ . -Sales, data = Carseats, subset = train)
+
+plot(tree.carseats)
+text(tree.carseats, pretty = 0)
+
+tree.pred = predict(tree.carseats, Carseats[-train,], type = 'class')
+with(Carseats[-train,], table(tree.pred, High))
+(71+33)/150
+
+```
+
+when it comes to predicting, we have to say that we want to predict the class lables, otherwise it would just predict the probabilities.
+
+The with command is basically saying create a confusion table using the Carseats test data lables and the actual labels from the high column of the carseats dataframe.
+
+The math gives the accuracy, which is the sum of the diagonal over the total sum. (At least on this simulation)
+
+Now lets do some cross validation to tune the parameters to avoid overfitting
+
+```{r}
+cv.carseats = cv.tree(tree.carseats, FUN=prune.misclass)
+cv.carseats
+plot(cv.carseats)
+```
+
+Here we going to use misclassifications as the means of deciding which branches get pruned back.
+
+when we look at cv.carseats we see what the size ($size) of the tree was after each pruning step. And also what the deviance was - note how this initially drops down but then increases again.
+
+From the plot we can see that the misclassification is best (lowest) between 10 and 14, so let's prune back the original tree to around 13 branches and plot it
+
+```{r}
+prune.carseats = prune.misclass(tree.carseats, best = 13)
+plot(prune.carseats)
+text(prune.carseats, pretty = 0)
+```
+
+Now lets evaluate this tree on our test data
+
+```{r}
+tree.pred = predict(prune.carseats, Carseats[-train,], type='class')
+with(Carseats[-train,], table(tree.pred, High))
+72+32 / 150
+```
+
+Looks like the shallower tree didn't improve our model, but it didn't get worse either and shallower is easier to interpret, so it is an overall improvement in that respect.
+
+

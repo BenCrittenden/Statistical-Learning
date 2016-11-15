@@ -1,0 +1,171 @@
+---
+title: "SVMClassification"
+output: html_document
+---
+
+Linear SVM Classification
+-------------------------
+
+```{r}
+rm(list = ls())
+library(e1071) #for the SVM
+```
+
+Let's generate some data
+
+```{r}
+set.seed(1011)
+x = matrix(rnorm(40), 20, 2)
+y = rep(c(-1,1),c(10,10))
+x[y=1,] = x[y=1,]+1
+plot(x, col=y+3, pch=19)
+```
+
+Fit the data with an svm. Here're well just choose the cost parameter, but in reality you may want to tune this.
+
+```{r}
+dat = data.frame(x, y = as.factor(y))
+svmfit = svm(y ~., data=dat, kernel = 'linear', cost =10, scale = FALSE)
+print(svmfit)
+plot(svmfit, dat)
+```
+
+The default plot is actaully a bit 'vibrant' and the labeling a bit strange too. So let's make one ourselves using a lattice of grid points that we create.
+
+```{r}
+make.grid = function(x, n=75){
+        grange = apply(x, 2, range)
+        x1 = seq(from = grange[1,1], to = grange[2,1], length = n)
+        x2 = seq(from = grange[1,2], to = grange[2,2], length = n)
+        expand.grid(X1=x1, X2=x2)
+}
+
+xgrid = make.grid(x)
+```
+
+Here we first use find the range of the two x predictors (columns in x).
+Then create two sequences between these extremes, both length 75. These will form the coordinates of the system.
+Then use the function expand.grid, to make a grid of coordinates - the output is a 2 column matrix with 75x75 rows.
+
+now plot the entire grid coloring the dots according which category that data point would belong to, which we get from the predict call.
+
+Then plot the actual data
+Finally put diamonds around the points which provide the support vectors
+
+```{r}
+ygrid = predict(svmfit, xgrid)
+plot(xgrid, 
+     col=c('red','blue')[as.numeric(ygrid)],
+     pch=20,
+     cex=.2)
+points(x, col=y+3, pch=19)
+points(x[svmfit$index,], pch=5, cex=2)
+```
+
+The boundary can be described as a function in predictor space. Thus it would be good to get the coefficients of this function (i.e. there's one coefficeint per predictor). Unfortunately that's not too easy to do - there's no built in method in the svm function, but we can calculate them:
+
+t - this function transposes a matrix
+%*% - this is matrix multiplication
+drop - same as matlabs squeeze
+
+```{r}
+beta = drop(t(svmfit$coefs) %*% x[svmfit$index,])
+beta0 = svmfit$rho
+
+plot(xgrid,
+     col = c('red','blue')[as.numeric(ygrid)], 
+     pch = 20,
+     cex = .2)
+points(x, col = y+3, pch=19)
+points(x[svmfit$index,], pch=5, cex=2)
+
+abline(beta0 / beta[2], -beta[1]/beta[2]) #the boundary
+abline((beta0 - 1)/beta[2], -beta[1]/beta[2], lty=2) #upper margin
+abline((beta0 + 1)/beta[2], -beta[1]/beta[2], lty=2) #lower margin
+```
+
+abline expects an intercept and a slop as it's two arguments
+
+
+
+
+NonLinear SVM Classification
+----------------------------
+
+Now we're going to fit some data which requires a non-linear boundary
+
+```{r}
+load('/Users/benc/OnlineCourses/Elements of Statistical Learning/ESL.mixture.rda')
+names(ESL.mixture)
+rm(x,y)
+attach(ESL.mixture)
+```
+
+This data is also 2D. Lets plot them and find a nonlinar SVM using a radial kernel
+
+```{r}
+plot(x, col=y+1)
+dat = data.frame(y = factor(y),x)
+```
+
+The data looks pretty messy. certainly there seems to be some way to separate them, but nothing obvious. Let's see what we can get with an SVM anyway.
+
+```{r}
+fit = svm(factor(y) ~.,
+          data = dat,
+          scale = FALSE,
+          kernel = 'radial',
+          cost = 5)
+```
+
+Let's plot this fit. Fortunately, this data contains two variables, px1 and px2, which which already has the grid-steps in each dimension. So we use expand.grid to make the grid and then predict the w values of these grid points using predict.
+
+```{r}
+xgrid = expand.grid(X1 = px1, X2 = px2)
+ygrid = predict(fit, xgrid)
+
+plot(xgrid,
+     col = c('red','blue')[as.numeric(ygrid)], 
+     pch = 20,
+     cex = .2)
+points(x, col = y+3, pch=19)
+```
+
+Hmmm, it's a very nonlinear boundary, but it doesn't look to bad.
+
+So how do we get the boundary (hyperplane?). Well, if we get the probability of each point belonging to each class, we need to find the points on the grid where the probability is ~0.5.
+
+We do this using the contour function.
+
+```{r}
+func = predict(fit, xgrid, decision.values = TRUE)
+func = attributes(func)$decision
+xgrid = expand.grid(X1=px1, X2=px2)
+ygrid = predict(fit, xgrid)
+plot(xgrid, col= as.numeric(ygrid), pch=20, cex=.2)
+points(x, col=y+1, pch=19)
+
+contour(px1,
+        px2,
+        matrix(func,69,99),
+        level=0,
+        add=TRUE)
+
+contour(px1,
+        px2,
+        matrix(prob,69,99),
+        level=0.5,
+        add=TRUE,
+        col='blue',
+        lwd=2)
+```
+
+First off we predicted the yvals for our grid of x predictors. Thes we extract the decision attribution of function.
+
+To get the black boundary, the function wants a matrix as an input with the category as a matrix. The categories of all the data are in func and we've got 99 X1's and 69 X2's so we put those values into the matrix function to reshape func apprpriately.
+
+The blue line is produced in a similar way but using probabilities (with 0.5 set as the trheshold) instead of the class lables. Prob comes from the input data - this wasn't calculated by me.
+
+The black boundary is the one that the svm with kernels found and the blue one is the bayes decision boundary which is based on probabilities - this is apparently the ideal. You can see that the black one isn't too bad an aproximation.
+
+

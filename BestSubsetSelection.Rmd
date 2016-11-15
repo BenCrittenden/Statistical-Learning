@@ -1,0 +1,64 @@
+---
+title: "BestSubsetSelection"
+output: html_document
+---
+
+```{r}
+library(ISLR)
+summary(Hitters)
+```
+
+There are some missing values in the Hitters database so we'll first need to remove them.
+
+```{r}
+Hitters=na.omit(Hitters)
+with(Hitters,sum(is.na(Salary)))
+```
+
+as you'll notice the output from the with command is 0 - which is what you'd expect as we've removed all the na's with the previous command. Good safety check!
+
+
+Best Subset regression
+------------------------
+
+We will now use the package 'leaps' to evaluate all teh best subest models
+
+```{r}
+library(leaps)
+regfit.full = regsubsets(Salary ~., data=Hitters)
+summary(regfit.full)
+```
+
+Each row corresponds to each subset iteration, i.e. the first row is with the best 1 subset. The 2nd row with the best 2 subsets etc up to 19, which includes all the parameters.
+
+The star indicates whether that predictor is present in that 'set' of subsets
+
+CRBI is the interesting one - that's seen as the best single predictor, however in subsets 7 and 8 it's not used. But is used in all subsequent subsets. That must mean that a lot of the variance is explained by the other subsets when there's 7 or 8 predictors.
+
+By default it only gives best-subsets up to size 8, so let's do it again up to 19 (i.e. all the variables)
+
+```{r}
+regfit.full = regsubsets(Salary ~. , data=Hitters, nvmax = 19)
+reg.summary = summary(regfit.full)
+names(reg.summary)
+plot(reg.summary$cp, xlab= 'No. of variables', ylab = 'cp')
+winner = which.min(reg.summary$cp)
+points(winner, reg.summary$cp[winner], pch=20, col='blue')
+```
+names tells us the names of the different fields within reg where the data is stored. We then used the cp field, which is a model fit estimate, to look at how the different models compared.
+
+which then found where cp was minimsed - which in this case was the model with 10 predictors. As you can see from the graph.
+
+The points command then colours in the winning model in blue on the graph.
+
+```{r}
+plot(regfit.full,scale='Cp')
+coef(regfit.full,winner)
+```
+
+The plot command makes a plot with the Cp of the 19 different models, ordered according to Cp from best at the top to worst at the bottom, against the different predictors. Black means that the predictor was in that model, white means it wasn't. You'll notice that at the top, the colours are quite stable, as in it's typically the same parameters that are in or out. Long vertical columns of black would also indicate consistently good predictors.
+I'm not sure why the squares at the bottom are shades of grey, rather than black.
+
+the coef function tells us what the parameter estimates / beta values were for the different predictors in the winning model.
+
+Click knit if you want a nice output of all the code, figures and comments.

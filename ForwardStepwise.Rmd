@@ -1,0 +1,124 @@
+---
+title: "ForwardStepwise"
+output: html_document
+---
+
+Before we start, let's get rid of the na's that we don't want
+
+```{r}
+Hitters=na.omit(Hitters)
+with(Hitters,sum(is.na(Salary)))
+```
+
+
+Forward Stepwise Selection
+--------------------------
+
+Here we use the regsubsets function, for which we'll need to specify the `method='forward' option. The default is best subset selection
+
+```{r}
+library(leaps)
+regfit.fwd = regsubsets(Salary ~. , data=Hitters, nvmax=19, method='forward')
+summary(regfit.fwd)
+plot(regfit.fwd, scale = 'Cp')
+```
+
+So again we fit multiple models, using the forward method of choosing which models to choose. 
+
+Looking at the summary, you'll notice that once an asterisk appears in a row, it will be in all subsequent rows, as you would expect from forward selection.
+
+In the plot you see that again, it's typically the same parameters in the best model. Because the models are ordered by performance there's no particualr pattern in terms of columns.
+
+
+
+Model Selection Using a validation set
+--------------------------------------
+
+Let's make a training and validation set, so taht we can choose a good subset model.
+
+```{r}
+d = dim(Hitters)
+set.seed(1)
+train = sample(seq(d[1]), 180, replace=FALSE)
+train
+regfit.fwd = regsubsets(Salary ~. , 
+                        data = Hitters[train,], 
+                        nvmax=19, 
+                        method = 'forward')
+```
+
+First I found out what the dimensions of Hitters was, and particualarly how many rows there were.
+
+Then I created a sequence of numbers from 1:the number of rows (263), which I took a sample of 180 values from. This was then printed to the screen
+
+Then I fit the model using only these rows of the Hitters data.
+
+Now let's make some predictions on the observations not used from trainin, i.e. the NOT train, or !train data.
+
+There's no predict method for regsubsets, so we need to do it ourselves using a for loop.
+
+```{r}
+n_models = regfit.fwd$nvmax - 1
+val.errors = rep(NA,n_models)
+x.test = model.matrix(Salary ~., 
+                      data = Hitters[-train,])
+
+for (i in 1:n_models){
+        
+        coefi = coef(regfit.fwd, id=i)
+        pred = x.test[,names(coefi)] %*% coefi
+        val.errors[i] = mean((Hitters$Salary[-train] - pred)^2)
+        
+}
+```
+
+First create a vector to save the error values in.
+Then create a design matrix based only on the test data. This is basically, each players stats for each predictor in the structure that they want.
+
+In the for loop.
+Get the beta values for each model, one at a time. i.e. the first model only has intercept and the first regressor which is CRuns.
+
+Next line first gets the data of each player for the two predictors of interest, i.e. the intercept and CRuns, from x.test. It then does a matrix multiplication %*% with the coefficients estimated from the training data for those two predictors. It's a (nx2) x (2x1) multiplication of two vectors, producing a (nx1) vector of estimated salaries for each player.
+
+You then manually calculated the square error of each players predicition by subtracting the prediction we just made against their actual salary. Then take the mean of that = mean square error.
+
+Let's plot the data
+
+```{r}
+plot(sqrt(val.errors), 
+     ylab = 'Root MSE', 
+     ylim=c(300,400), 
+     pch = 19, 
+     type = 'b')
+
+points(sqrt(regfit.fwd$rss[-1]/180),
+       col = 'blue',
+       pch = 19,
+       type = 'b')
+
+legend('topright', 
+       legend = c('Training','Validation'),
+       col = c('blue','black'),
+       pch=19)
+```
+
+Plot the predicted MSE of the test data first.
+
+Then plot the MSE of the training data removing the intercept, which is the first column. 
+
+As you can see, the Training data get's monotonically better, as you would expect, however the test data suggests that over 5 parameters and the model is overfitting.
+
+
+To write the prediction algorithm out each time is a bit involved, so let's stick it all into an easy to call function.
+
+```{r}
+predict.regsubsets = function(object, newdata, id, ...){
+        
+        form = as.formula(object$call[[2]])
+        mat = model.matrix(form, newdata)
+        coefi = coef(object, id=id)
+        mat[,names(coefi)] %*% coefi
+        
+}
+```
+

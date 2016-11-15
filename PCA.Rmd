@@ -1,0 +1,44 @@
+---
+title: "PCA"
+output: html_document
+---
+
+Principal Component Analysis
+----------------------------
+
+We're going to use arrest data in the US
+
+```{r}
+rm(list = ls())
+dimnames(USArrests)
+apply(USArrests,2,mean)
+apply(USArrests,2,var)
+```
+
+The states are in rows (50 of them) and the crimes and population are in the columns.
+
+Here we get the mean and variance across all states in each column (the 2nd dimension of the data)
+
+We can see that assault is a lot larger than the other crimes, so we should standardize the predictors so that it doesn't dominate the principal components. we can do that with an inbuilt option to the prcomp function.
+
+```{r}
+pca.out = prcomp(USArrests, scale = TRUE)
+pca.out
+```
+
+The output is firstly the standard deviations of the four principal components. These sd's will always be decreasing with each subsequent PC.
+
+The other output (Roation) is the loadings of each predictor on all of the principal components. The sign doesn't actually matter. 
+the crimes load roughly equally on PC1, but population is the biggest loader on PC2.
+
+```{r}
+names(pca.out)
+biplot(pca.out, scale = 0, cex = 0.6)
+```
+
+Note that in the diagram it looks like the 'crime' component gets smaller on states with less crime! However, remember that the PCA loading was negative above and the PC1 values are also negative for these states. Two negatives make a positive, so all is well.
+
+
+
+
+

@@ -1,0 +1,73 @@
+---
+title: "ModelSelection4CV"
+output: html_document
+---
+
+Model Selection for Cross-Validation
+------------------------------------
+
+Let's do 10-fold CV.
+
+let's do the basics - clean up the workspace and add the necessary libraries, clean up the data we'll be using...
+and define a function that we're going to need (details on the function are in the ForwardStepwise Lesson)
+
+```{r}
+rm(list = ls())
+library(leaps)
+
+Hitters=na.omit(Hitters)
+
+predict.regsubsets = function(object, newdata, id, ...){
+        
+        form = as.formula(object$call[[2]])
+        mat = model.matrix(form, newdata)
+        coefi = coef(object, id=id)
+        mat[,names(coefi)] %*% coefi
+        
+}
+```
+
+Now for the CV
+
+```{r}
+set.seed(11)
+k_folds = 10
+n_p = ncol(Hitters) - 1 #-1 because we're not including the salary col.
+folds = sample(rep(1:k_folds, length=nrow(Hitters)))
+folds
+table(folds)
+cv.errors = matrix(NA,k_folds,n_p)
+
+for (k in 1:k_folds){
+        
+        best.fit = regsubsets(Salary ~.,
+                              data=Hitters[folds!=k,],
+                              nvmax = n_p,
+                              method = 'forward')
+        
+        for (i in 1:n_p){
+                
+                pred = predict(best.fit,
+                               Hitters[folds==k,],
+                               id = i)
+                cv.errors[k,i] = mean((Hitters$Salary[folds==k] - pred)^2)
+                
+        }
+        
+}
+```
+
+First off you're setting up the k-folds procedure. You assign a lable of 1-10 randomly to each row, ensuring that there are the same number of each label (or as close as you can get to that.)
+
+First loop is fitting the model, training on the non-k data
+
+Second loop is testing the model ont he k-data and saving the MSE for that Forward Stepwise model against that fold.
+
+now let's get the RMSE (root mean square error) average across the 10 folds  and plot it.
+
+```{r}
+rmse.cv = sqrt(apply(cv.errors,2,mean))
+plot(rmse.cv, pch = 19, type = 'b')
+```
+
+Looks like 11 parameters is the best bet here!

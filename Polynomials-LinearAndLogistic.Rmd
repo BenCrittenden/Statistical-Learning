@@ -1,0 +1,116 @@
+---
+title: "Polynomials-LinearAndLogistic"
+output: html_document
+---
+
+Regression and GAMs
+--------------------
+
+```{r}
+library(ISLR)
+attach(Wage)
+```
+
+Polynomials
+-----------
+
+Fit a 4th degree polynomial focussing only on age
+
+```{r}
+fit = lm(wage ~ poly(age, degree = 4), data = Wage)
+summary(fit)
+```
+
+Let's plot the results. First create some new x values which are evenly spaced and use the model to predict what the wage would be for these ages.
+
+```{r, fig.width=7, fig.height=6}
+agelims = range(age)
+age.grid = seq(from = agelims[1], to = agelims[2])
+preds = predict(fit, newdata = list(age = age.grid), se=TRUE)
+se.bands = cbind(preds$fit + 2*preds$se, preds$fit - 2*preds$se)
+plot(age,wage,col='darkgrey')
+lines(age.grid, preds$fit, lwd=2, col='blue')
+matlines(age.grid, se.bands, col='blue', lty = 2)
+```
+
+lwd = thickness (density)
+lty = 2 means a broken line
+
+There are other ways to fit a polynomial.
+
+```{r}
+fita = lm(wage ~ age + I(age^2) + I(age^3) + I(age^4), data = Wage)
+summary(fita)
+```
+
+The reason we use I() is because the ^ symbol has a different meaning in the formula notation, so without the I it wouldn't simply mean age squared.
+By wrapping it in an I it does mean age squared.
+
+Surprisingly, if you check the fitted estimates to the ones we had before you'll find that they're different. Although that may be disconcerting, it is actually nothing to worry about, and in fact if you fit the two functions you'll see that they're the same:
+
+```{r}
+plot(fitted(fit),fitted(fita))
+```
+
+The reason is that the first method uses orthogonal polynomials so that you can test the significance of each parameter estimate separately. The second method does not do this.
+This only applies to linear regression with a single predictor. For other cases you would need to use anova() to test the significance of different parameter estimates.
+
+```{r}
+fita = lm(wage ~ education, data = Wage)
+fitb = lm(wage ~ education + age, data  = Wage)
+fitc = lm(wage ~ education + poly(age,2), data = Wage)
+fitd = lm(wage ~ education + poly(age,3), data = Wage)
+anova(fita,fitb,fitc,fitd)
+```
+
+Here we've created a series of models of increasing complexity and used anova to compare the models. The output shows that the first and second order age components (i.e. model b and c) make a very important contribution, but that the third component is only just significant.
+
+
+Polynomial Logistic Regresion
+-----------------------------
+
+Now let's look at logistic regression with polynomials. 
+
+We'll use the same data, but create an additional field where we specifiy 1's as people who earn over 250k and 0 otherwise.
+
+```{r}
+fit = glm(I(wage>250) ~ poly(age,3),
+          data = Wage,
+          family = binomial)
+summary(fit)
+preds = predict(fit, list(age=age.grid), se=T)
+se.bands = preds$fit + cbind(fit=0, lower = -2*preds$se, upper = 2*preds$se)
+se.bands[1:5,]
+```
+
+Here we fit the model and do the prediction based on the same ascending x values (age) in age.grid as we did above.
+
+But the standard error bars are calcuated differently. First off we take the fit values in preds$fit which is a vector of predicted wages based on the ages in age.grid. We then use cbind to effectively create a table with 3 columns with heading fit, lower and upper. To the fit column we'll add 0 to all the values in preds$fit (i.e. it'll be preds$fit) and tow the other 2 columns we add/subtract 2* the standard error estimate.
+
+Currently the estimates and standard errors are in the logit scale - we want to transform these into probabilities using the inverse logit function.
+
+```{r}
+prob.bands = exp(se.bands) / (1 + exp(se.bands))
+matplot(age.grid, 
+        prob.bands, 
+        col = 'blue', 
+        lwd = c(2,1,1),
+        lty = c(1,2,2),
+        type = 'l',
+        ylim = c(0,.1))
+points(jitter(age), I(wage>250)/10, pch='|', cex=.5 )
+```
+
+lwd is the line width of the mean, lower and upper intervals respectively
+lty is the line type of the mean, lower and upper intervals respectively,
+
+points plots the actual data as any character you put into pch, here we chose the straight line character. cex is the size of the character.
+
+jitter adds a little bit of noise to the values, which here is useful for visualization purposes.
+
+
+
+
+
+
+

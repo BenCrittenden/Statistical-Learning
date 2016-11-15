@@ -1,0 +1,58 @@
+---
+title: "HierarchicalClustering"
+output: html_document
+---
+
+Hierarchical Clustering
+-----------------------
+
+For this task we'll generate some data which we'll push to have 4 clusters.
+
+```{r}
+rm(list = ls())
+set.seed(101)
+
+x = matrix(rnorm(100*2),100,2)
+xmean = matrix(rnorm(8, sd=4),4,2)
+which  = sample(1:4, 100, replace=TRUE)
+x = x+xmean[which,]
+plot(x, col=which, pch=19)
+```
+
+Now do the HCing:
+
+we need to convert x into a distance matrix - which is a 100 x 100 matrix of the distance between each pair of examples. The result is a triangular matrix - in that only the bottom left triangle is actually filled in as the matrix is symmetrical along that axis. 
+
+```{r}
+hc.complete = hclust(dist(x), method='complete')
+plot(hc.complete)
+hc.single = hclust(dist(x), method='single')
+plot(hc.single)
+```
+
+Interestingly, you can see that the single linkage clustering gets quite a different answer. You typically get much more elongated clusters, rather than ball-like clusters that you get with the 'complete' method.
+
+```{r}
+hc.average = hclust(dist(x), method='average')
+plot(hc.average)
+```
+
+Again, this one's a bit elongated, so let's stick with the original. Of course, in real data an elongated cloud may be appropriate, but because we generated this data, we know that in this case it is not.
+
+Now let's cut th tree at a level that will produce 4 clusters and assign data with a label according to which cluster it belongs to based on branches down to that point.
+
+```{r}
+hc.cut = cutree(hc.complete,4)
+table(hc.cut,which)
+```
+
+the number labels are arbitrary, which is why the large numbers aren't on the principal diagonal. But ignoring this, you can see that in general most data seem to correspond to a few clusters which match.
+
+```{r}
+plot(hc.complete, labels=which)
+```
+
+assign each 'leaf' with the cluster label that that leaf belongs to.
+
+
+

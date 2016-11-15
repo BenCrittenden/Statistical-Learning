@@ -1,0 +1,85 @@
+---
+title: "RidgeRegressionAndLasso"
+output: html_document
+---
+
+Ridge Regression and the Lasso
+------------------------------
+
+Let's do the tidying and basics
+
+```{r}
+rm(list = ls())
+library(leaps)
+library(glmnet)
+
+Hitters=na.omit(Hitters)
+```
+
+OK, let's start by definint the design matrix and also the y values that we want to predict/fit to. glmnet doesn't take a formula input so we have to put these in manually to glmnet.
+
+```{r}
+x = model.matrix(Salary ~. -1, data=Hitters)
+y = Hitters$Salary
+```
+The -1 removes the first column which is all 1's for the intercept.
+
+First off let's fit a ridge regression model. This is achieved by calling 'glmnet' with 'alpha=0'. There is also a 'cv.glmnet' function which will do the CV for us.
+
+alpha = 0 is Ridge Regression
+alpha = 1 is Lasso
+alpha between 0 and 1 is an elastic net (more on that later in the course)
+
+glmnet fits lots of values of lambda (100 by default, although if the value's stop changing there's a stopping rule) overa a log scale.
+
+```{r}
+fit.ridge = glmnet(x,y,alpha = 0)
+plot(fit.ridge, xvar = 'lambda', label=TRUE)
+```
+
+Let's do it again, but with cross validation. Fortunately glmnet has a function for that!
+
+The default is k = 10 fold.
+
+```{r}
+cv.ridge = cv.glmnet(x,y,alpha=0)
+plot(cv.ridge)
+```
+
+As the plot shows, the best model is actually where log(lambda) is lowest, suggesting that the bare model is doing a good job. log(lambda) = 3.5, means lambda = 1.25.
+
+The first dotted line shows where the lowest lambda is, and the second dotted line shows the highest value of lambda that is within 1 standard error of the lowest lambda - i.e. if you trace right from the top SE bar of the lowest lambda, the red dot you hit will be where the dotted line is.
+
+
+
+Lasso
+-----
+
+set alpha to 1 for lasso (actually this is the default)
+
+```{r}
+fit.lasso = glmnet(x,y)
+plot(fit.lasso, xvar = 'lambda', label=TRUE)
+```
+You can see how the different parameter estimates (coefficients / betas) change according to lambda, and here they go down to 0 eventually.
+
+You can also look at deviance, which is like R^2
+
+```{r}
+plot(fit.lasso, xvar = 'dev', label = TRUE)
+```
+
+This graph suggests that up to 0.45, i.e. 45%, of the variance is explained with very low lambda values. The quick, large growth after that point may be indicative of over-fitting.
+
+We can do CV with lasso too
+
+```{r}
+cv.lasso = cv.glmnet(x,y)
+plot(cv.lasso)
+coef(cv.lasso)
+```
+
+This plot works the same way as the other one. Here the best log lambda is around 1, and that 4.25 is roughly where the highest lambda within 1 SE of the best one is...
+
+coef picks the coefficient values corresponding to the best model.
+
